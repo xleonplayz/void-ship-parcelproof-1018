@@ -27,6 +27,33 @@ const send = (res,status,value) => {
 http.createServer((req,res)=>{
   const path=req.url.split('?')[0];
   console.error('parcelproof-request',req.method,path);
+  if (path==='/__diagnostics__/hash') {
+    const rows=[];
+    for (const value of ['', 'abc', 'Café 🌊\n']) {
+      try{rows.push({value,digest:createHash('sha256').update(value,'utf8').digest('hex')});}
+      catch(error){rows.push({value,error:String(error.message)});}
+    }
+    return send(res,200,{kind:'isolated-hash',rows});
+  }
+  if (path==='/__diagnostics__/body' && req.method==='POST') {
+    const chunks=[];let bytes=0;
+    req.on('data',chunk=>{bytes+=chunk.length;if(bytes<=4096)chunks.push(chunk);});
+    req.on('end',()=>{
+      if(bytes>4096)return send(res,413,{error:'Diagnostic body too large.'});
+      const result={kind:'isolated-body',bytes,count:chunks.length,steps:[]};
+      const step=(name,fn)=>{try{result.steps.push({name,value:fn()});}catch(error){result.steps.push({name,error:String(error.message)});}};
+      step('chunk-types',()=>chunks.map(c=>typeof c));
+      step('chunk-lengths',()=>chunks.map(c=>c.length));
+      step('is-buffer',()=>chunks.map(c=>Buffer.isBuffer(c)));
+      step('chunk-text',()=>chunks.map(c=>c.toString('utf8')));
+      step('concat-text',()=>Buffer.concat(chunks).toString('utf8'));
+      step('joined-text',()=>chunks.map(c=>c.toString('utf8')).join(''));
+      step('concat-json',()=>JSON.parse(Buffer.concat(chunks).toString('utf8')));
+      step('joined-json',()=>JSON.parse(chunks.map(c=>c.toString('utf8')).join('')));
+      return send(res,200,result);
+    });
+    return;
+  }
   if (path==='/api/seal' && req.method==='POST') {
     let bytes=0,overflow=false;const chunks=[];
     req.on('data',chunk=>{bytes+=chunk.length;if(bytes>32768){overflow=true;return;}chunks.push(chunk);});
