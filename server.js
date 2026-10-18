@@ -45,6 +45,7 @@ http.createServer((req,res)=>{
   }
   if(req.method!=='GET'&&req.method!=='HEAD')return send(res,405,{error:'Method not allowed.'});
   if(path==='/health')return send(res,200,{service:'parcelproof',edition});
+  if(path==='/api/limits')return send(res,200,{maxFiles:12,maxFileBytes:2097152,maxTotalBytes:8388608,maxManifestBytes:32768,receiptAlgorithm:'SHA-256',edition});
   const asset=assets[path==='/'?'/index.html':path];
   if(!asset)return send(res,404,{error:'Not found.'});
   res.writeHead(200,{'content-type':asset.type,'cache-control':'no-store'});
